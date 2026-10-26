@@ -1,0 +1,39 @@
+{
+  "name": "jojo-market-server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "cross-env NODE_ENV=test node --test --test-concurrency=1 test/auth.test.js test/booking.test.js test/mail.test.js",
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "migrate": "node src/db/migrate.js",
+    "seed:admin": "node src/db/seedAdmin.js",
+    "seed": "node src/db/seeds/seed.js",
+    "jobs": "node src/jobs/runJobs.js",
+    "setup": "npm run migrate && npm run seed",
+    "mail:test": "node src/db/sendTestEmail.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cloudinary": "^2.11.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.9",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.7.1",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "morgan": "^1.12.1",
+    "multer": "^2.5.0",
+    "mysql2": "^3.24.6",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3"
+  }
+}
