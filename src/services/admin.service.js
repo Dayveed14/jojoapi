@@ -1,6 +1,7 @@
 // Operator-only read models: dashboard, customers, calendar, payments, audit.
 import { CAPACITY_STATUSES, STATUS as S, STATUS_LABELS } from '../config/constants.js';
 import * as Audit from '../models/audit.model.js';
+import * as KitchenOrder from '../models/kitchenOrder.model.js';
 import * as Availability from '../models/availability.model.js';
 import * as Booking from '../models/booking.model.js';
 import * as Notification from '../models/notification.model.js';
@@ -13,6 +14,7 @@ import { money } from '../utils/money.js';
 import * as auditService from './audit.service.js';
 import * as availabilityService from './availability.service.js';
 import { presentSummary } from './booking.service.js';
+import * as kitchenService from './kitchen.service.js';
 import { revokeAllSessions } from './session.service.js';
 import * as settingsService from './settings.service.js';
 
@@ -22,6 +24,7 @@ export async function dashboard() {
     Booking.countByStatus(), User.customerStats(), Booking.listOnDate(today), Payment.pendingCount(),
     Reconciliation.openCount(), Audit.activitySummary(7), User.recentCustomers(5),
   ]);
+  const [kCounts, kToday] = await Promise.all([KitchenOrder.countByStatus(), KitchenOrder.listForDay(today, ['confirmed', 'preparing', 'cooking', 'out_for_delivery', 'delivered'])]);
   const upcoming = await Booking.listForAdmin({ statuses: [S.PAID, S.AWAITING_PAYMENT, S.AWAITING_CUSTOMER_APPROVAL], from: today, to: addDays(today, 14), limit: 8, offset: 0 });
   return {
     queue: {
@@ -34,6 +37,13 @@ export async function dashboard() {
     },
     today: todays.filter((b) => CAPACITY_STATUSES.includes(b.status)).map(presentSummary),
     upcoming: upcoming.rows.map(presentSummary),
+    kitchen: {
+      expressRequests: kCounts.express_requested || 0,
+      awaitingPayment: kCounts.awaiting_payment || 0,
+      inKitchen: (kCounts.confirmed || 0) + (kCounts.preparing || 0) + (kCounts.cooking || 0),
+      outForDelivery: kCounts.out_for_delivery || 0,
+      today: await Promise.all(kToday.map(kitchenService.presentSummary)),
+    },
     customers: {
       total: Number(stats.customers || 0), newThisWeek: Number(stats.newThisWeek || 0),
       unverified: Number(stats.unverified || 0), suspended: Number(stats.suspended || 0),

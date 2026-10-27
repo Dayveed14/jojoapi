@@ -39,6 +39,41 @@ export const DEFAULTS = {
     accountNumber: '',
     instructions: 'Use your booking reference as the transfer narration.',
   },
+  // Jojo's Kitchen — cooked-to-order meals, delivery only. All values are editable in Admin → Kitchen → Settings.
+  kitchen: {
+    enabled: true,
+    workingDays: [1, 2, 3, 4, 5, 6],        // days Jojo cooks/delivers (0 = Sunday)
+    dailyCapacityPortions: 60,             // cooking effort per day (a plate = 1, a party cooler ≈ 20)
+    maxOrdersPerDay: 6,
+    // Lead time (Lagos time): before 10:00 → +24h; 10:00–11:59 → +24h + 4h; from 12:00 → the day after tomorrow.
+    fullDayCutoff: '10:00',
+    extraHoursCutoff: '12:00',
+    extraHours: 4,
+    bulkPortionThreshold: 20,              // orders this big (or with a bulk option) need extra days
+    bulkExtraDays: 1,
+    bookingWindowDays: 21,
+    paymentWindowHours: 3,                 // unpaid regular orders release their day after this
+    deliveryWindows: [
+      { key: 'morning', label: 'Morning (10am – 12pm)', start: '10:00', end: '12:00' },
+      { key: 'afternoon', label: 'Afternoon (12pm – 4pm)', start: '12:00', end: '16:00' },
+      { key: 'evening', label: 'Evening (4pm – 7pm)', start: '16:00', end: '19:00' },
+    ],
+    // Express: customer picks a time; Jojo must approve; costs more.
+    expressEnabled: true,
+    expressSurchargePercent: 30,
+    expressMinFee: 3000,
+    expressMinHoursAhead: 3,
+    expressReplyHours: 3,                  // unanswered express requests expire after this
+    expressEarliestTime: '08:00',
+    expressLatestTime: '20:00',
+    deliveryBaseFee: 1500,
+    deliveryPerKm: 250,
+  },
+  // Who gets operator emails (new requests, express orders, transfer notices). Comma-separated.
+  // Blank = every operator account.
+  notifications: {
+    operatorEmails: '',
+  },
   restocking: {
     defaultHouseholdSize: 4,
     defaultLeadDays: 3,

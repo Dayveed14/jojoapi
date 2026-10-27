@@ -43,3 +43,60 @@ export const FINAL_STATUSES = [STATUS.COMPLETED, STATUS.DECLINED, STATUS.CANCELL
 export const CUSTOMER_CANCELLABLE = [STATUS.SUBMITTED, STATUS.AWAITING_CUSTOMER_APPROVAL, STATUS.AWAITING_PAYMENT, STATUS.PAID];
 
 export const RESTOCK_STATUSES = ['unknown', 'still_available', 'running_low', 'finished'];
+
+// ---------- Jojo's Kitchen ----------
+export const KITCHEN_STATUS = {
+  EXPRESS_REQUESTED: 'express_requested', // waiting for Jojo to say yes to an express time
+  AWAITING_PAYMENT: 'awaiting_payment',
+  CONFIRMED: 'confirmed',                 // paid; in the cooking schedule
+  PREPARING: 'preparing',                 // buying fresh ingredients, prepping
+  COOKING: 'cooking',
+  OUT_FOR_DELIVERY: 'out_for_delivery',
+  DELIVERED: 'delivered',
+  DECLINED: 'declined',
+  CANCELLED: 'cancelled',
+  EXPIRED: 'expired',
+};
+
+export const KITCHEN_STATUS_LABELS = {
+  express_requested: 'Express request — checking with Jojo',
+  awaiting_payment: 'Awaiting payment',
+  confirmed: 'Confirmed & scheduled',
+  preparing: 'Preparing ingredients',
+  cooking: 'Cooking',
+  out_for_delivery: 'Out for delivery',
+  delivered: 'Delivered',
+  declined: 'Declined',
+  cancelled: 'Cancelled',
+  expired: 'Expired',
+};
+
+/** Orders that use cooking capacity on their delivery day (awaiting_payment only while unexpired). */
+export const KITCHEN_CAPACITY_STATUSES = ['awaiting_payment', 'confirmed', 'preparing', 'cooking', 'out_for_delivery', 'delivered'];
+export const KITCHEN_ACTIVE_STATUSES = ['express_requested', 'awaiting_payment', 'confirmed', 'preparing', 'cooking', 'out_for_delivery'];
+
+/** Things customers can ask Jojo to leave out. Each meal chooses which apply. */
+export const KITCHEN_EXCLUSIONS = {
+  no_garlic: 'No garlic',
+  no_ginger: 'No ginger',
+  no_onions: 'No onions',
+  no_seasoning_cubes: 'No seasoning cubes (Maggi/Knorr)',
+  no_msg: 'No MSG',
+  no_crayfish: 'No crayfish',
+  low_salt: 'Low salt',
+  low_oil: 'Less oil',
+  no_palm_oil: 'No palm oil',
+  no_beef: 'No beef',
+  no_shellfish: 'No shellfish / prawns',
+  no_nuts: 'No nuts (allergy)',
+};
+
+export const MEAL_CATEGORIES = {
+  rice: 'Rice dishes',
+  soups: 'Soups & stews',
+  swallow: 'Swallow',
+  proteins: 'Proteins & pepper soup',
+  small_chops: 'Small chops & snacks',
+  sides: 'Sides',
+  party: 'Party & bulk trays',
+};

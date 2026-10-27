@@ -17,6 +17,11 @@ import * as auditService from './audit.service.js';
 import * as mailService from './mail.service.js';
 import * as paystack from './providers/paystack.provider.js';
 import * as statusService from './bookingStatus.service.js';
+import { KITCHEN_STATUS as K } from '../config/constants.js';
+import * as KitchenOrder from '../models/kitchenOrder.model.js';
+import * as kitchenNotify from './kitchenNotify.service.js';
+import * as kitchenStatus from './kitchenStatus.service.js';
+import * as notify from './notify.service.js';
 
 export const onlineEnabled = () => paystackEnabled;
 let provider = paystack;
@@ -54,6 +59,32 @@ async function applyEffects(conn, bookingId, actor) {
     await Reconciliation.setResolution(b.id, { resolutionStatus: 'settled' }, conn);
   }
   return { booking: b, fullyPaid: true };
+}
+
+// ---------- Kitchen orders: fixed price, pay once ----------
+
+export async function kitchenAmountDue(o, conn) {
+  if (o.status !== K.AWAITING_PAYMENT) return { amount: 0, kind: null };
+  const dueK = toKobo(o.total) - (await Payment.paidTotalKoboForKitchenOrder(o.id, conn));
+  return { amount: toNaira(Math.max(0, dueK)), kind: 'charge', label: o.order_type === 'express' ? 'Express order payment' : 'Order payment' };
+}
+
+async function applyKitchenEffects(conn, orderId, actor) {
+  const o = await KitchenOrder.lockById(orderId, conn);
+  const due = await kitchenAmountDue(o, conn);
+  if (due.amount > 0 || o.status !== K.AWAITING_PAYMENT) return { fullyPaid: due.amount <= 0 };
+  await kitchenStatus.transition(conn, o, K.CONFIRMED, actor, { expiresAt: null });
+  return { fullyPaid: true, newlyPaid: true };
+}
+
+/** Route effects/notifications to the right kind of order. */
+const effectsFor = (conn, tx, actor) => (tx.kitchen_order_id ? applyKitchenEffects(conn, tx.kitchen_order_id, actor) : applyEffects(conn, tx.booking_id, actor));
+async function notifyFor(tx, effects) {
+  if (tx.kitchen_order_id) {
+    if (effects?.newlyPaid) await kitchenNotify.paid(tx.kitchen_order_id);
+    return;
+  }
+  await notifyPaid(tx.booking_id, money(tx.amount));
 }
 
 async function notifyPaid(bookingId, amount) {
@@ -102,7 +133,7 @@ export async function confirmOnline(reference, { expectedCustomerId = null } = {
       return { tx, failed: true, providerStatus: 'amount_mismatch' };
     }
     await Payment.markStatus(tx.id, 'successful', { metadata: { channel: verified.channel, paystack_id: verified.id } }, conn);
-    const effects = await applyEffects(conn, tx.booking_id, { id: null, role: 'system' });
+    const effects = await effectsFor(conn, tx, { id: null, role: 'system' });
     return { tx, effects };
   });
 
@@ -111,10 +142,15 @@ export async function confirmOnline(reference, { expectedCustomerId = null } = {
   }
   if (result.effects) {
     await auditService.record({ action: 'payment.verified', entityType: 'payment', entityId: result.tx.id, metadata: { reference, amount: money(result.tx.amount) } });
-    await notifyPaid(result.tx.booking_id, money(result.tx.amount));
+    await notifyFor(result.tx, result.effects);
+  }
+  const status = result.failed ? 'failed' : 'successful';
+  if (result.tx.kitchen_order_id) {
+    const o = await KitchenOrder.findById(result.tx.kitchen_order_id);
+    return { status, kitchenReference: o.reference, providerStatus: result.providerStatus };
   }
   const booking = await Booking.findById(result.tx.booking_id);
-  return { status: result.failed ? 'failed' : 'successful', bookingReference: booking.reference, providerStatus: result.providerStatus };
+  return { status, bookingReference: booking.reference, providerStatus: result.providerStatus };
 }
 
 export async function handleWebhook(rawBody, signature) {
@@ -138,7 +174,50 @@ export async function submitManual(b, customerId, payerNote) {
   await Payment.create({
     bookingId: b.id, customerId, provider: 'manual', type: due.kind, amount: due.amount, status: 'pending', payerNote: payerNote || null,
   });
+  await notify.operators(mailService.templates.opTransferNotice(b.reference, due.amount, payerNote, `/admin/bookings/${b.reference}`));
   return { amount: due.amount };
+}
+
+// ---------- Kitchen: start online / transfer / credit ----------
+
+export async function startOnlineKitchen(o, customer) {
+  if (!paystackEnabled) throw new AppError(503, 'Online payment is not available yet. Please pay by bank transfer.', 'ONLINE_DISABLED');
+  const due = await kitchenAmountDue(o);
+  if (!(due.amount > 0)) throw conflict('Nothing to pay on this order right now.');
+  const reference = paymentReference(o.reference);
+  await Payment.create({ kitchenOrderId: o.id, customerId: o.customer_id, provider: 'paystack', providerReference: reference, type: 'charge', amount: due.amount, status: 'initiated', metadata: { kitchen: o.reference } });
+  const { authorizationUrl } = await provider.initialize({
+    email: customer.email, amountKobo: toKobo(due.amount), reference,
+    callbackUrl: `${env.CLIENT_ORIGIN}/app/payments/callback`, metadata: { kitchen_reference: o.reference },
+  });
+  return { authorizationUrl, reference };
+}
+
+export async function submitManualKitchen(o, customerId, payerNote) {
+  const due = await kitchenAmountDue(o);
+  if (!(due.amount > 0)) throw conflict('Nothing to pay on this order right now.');
+  if (await Payment.hasPendingKitchen(o.id)) throw conflict('We already have your transfer notice — Jojo will confirm it shortly.');
+  await Payment.create({ kitchenOrderId: o.id, customerId, provider: 'manual', type: 'charge', amount: due.amount, status: 'pending', payerNote: payerNote || null });
+  await notify.operators(mailService.templates.opTransferNotice(o.reference, due.amount, payerNote, `/admin/kitchen/orders/${o.reference}`));
+  return { amount: due.amount };
+}
+
+export async function payWithCreditKitchen(o, customerId, ip) {
+  const result = await withTransaction(async (conn) => {
+    await Payment.lockCustomerRow(customerId, conn);
+    const locked = await KitchenOrder.lockById(o.id, conn);
+    const due = await kitchenAmountDue(locked, conn);
+    if (!(due.amount > 0)) throw conflict('Nothing to pay on this order right now.');
+    const balanceK = await Payment.creditBalanceKobo(customerId, conn);
+    if (balanceK <= 0) throw badRequest('You have no Jojo Market credit.');
+    const useK = Math.min(balanceK, toKobo(due.amount));
+    await Payment.create({ kitchenOrderId: o.id, customerId, provider: 'credit', type: 'credit_applied', amount: toNaira(useK), status: 'successful', verifiedAt: new Date() }, conn);
+    const effects = await applyKitchenEffects(conn, o.id, { id: null, role: 'system' });
+    return { used: toNaira(useK), effects };
+  });
+  await auditService.record({ actorUserId: customerId, action: 'payment.credit_applied', entityType: 'kitchen_order', entityId: o.id, metadata: { amount: result.used }, ip });
+  if (result.effects.newlyPaid) await kitchenNotify.paid(o.id);
+  return { used: result.used, fullyPaid: result.effects.fullyPaid };
 }
 
 export async function confirmManual(txId, operator, ip) {
@@ -148,12 +227,12 @@ export async function confirmManual(txId, operator, ip) {
     if (tx.status === 'successful') return { tx, alreadyDone: true };
     if (tx.status !== 'pending') throw conflict('Only pending transfers can be confirmed.');
     await Payment.markStatus(tx.id, 'successful', { verifiedBy: operator.id }, conn);
-    const effects = await applyEffects(conn, tx.booking_id, { id: operator.id, role: 'operator' });
+    const effects = await effectsFor(conn, tx, { id: operator.id, role: 'operator' });
     return { tx, effects };
   });
   if (!result.alreadyDone) {
     await auditService.record({ actorUserId: operator.id, action: 'payment.manual_confirmed', entityType: 'payment', entityId: txId, metadata: { amount: money(result.tx.amount) }, ip });
-    await notifyPaid(result.tx.booking_id, money(result.tx.amount));
+    await notifyFor(result.tx, result.effects);
   }
 }
 
@@ -194,7 +273,7 @@ export async function listForCustomer(customerId) {
   return {
     creditBalance: toNaira(await Payment.creditBalanceKobo(customerId)),
     items: rows.map((t) => ({
-      id: t.id, bookingReference: t.booking_reference, provider: t.provider, type: t.transaction_type,
+      id: t.id, bookingReference: t.booking_reference, kitchenReference: t.kitchen_reference, provider: t.provider, type: t.transaction_type,
       amount: money(t.amount), status: t.status, createdAt: t.created_at, verifiedAt: t.verified_at,
     })),
   };

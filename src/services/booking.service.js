@@ -19,6 +19,7 @@ import * as auditService from './audit.service.js';
 import * as availabilityService from './availability.service.js';
 import * as catalogService from './catalog.service.js';
 import * as mailService from './mail.service.js';
+import * as notify from './notify.service.js';
 import * as paymentService from './payment.service.js';
 import * as pricingService from './pricing.service.js';
 import * as settingsService from './settings.service.js';
@@ -139,6 +140,7 @@ export async function create(customerId, body, ip) {
 
   await auditService.record({ actorUserId: customerId, action: 'booking.submitted', entityType: 'booking', entityId: booking.id, metadata: { reference: booking.reference, type: booking.booking_type }, ip });
   await mailService.send({ to: booking.customer_email, userId: customerId, bookingId: booking.id, ...mailService.templates.bookingReceived(booking) });
+  await notify.operators(mailService.templates.opNewBooking(booking), { bookingId: booking.id });
   return booking;
 }
 

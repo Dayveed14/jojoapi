@@ -14,6 +14,7 @@ const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'migrations'
 const MARKER_TABLE = {
   '001_identity.sql': 'users',
   '002_operations.sql': 'bookings',
+  '003_kitchen.sql': 'kitchen_orders',
 };
 
 const conn = await mysql.createConnection({

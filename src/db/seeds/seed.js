@@ -152,5 +152,67 @@ for (const [i, [cat, name, terms, restock, open, options]] of ITEMS.entries()) {
   itemCount++;
 }
 
-console.log(`Seeded ${AREAS.length} areas, ${CATEGORIES.length} categories, ${MARKETS.length} markets, ${itemCount} new items.`);
+
+// ---------- Jojo's Kitchen starter menu (SAMPLE prices — edit in Admin → Kitchen → Menu) ----------
+// [slug, name, category, illustration, description, exclusions, spice, contains, featured, options[[label, serves, price, portions, bulk]]]
+const STD = ['no_garlic', 'no_ginger', 'no_onions', 'no_seasoning_cubes', 'no_msg', 'low_salt', 'low_oil'];
+const SOUP = [...STD, 'no_crayfish', 'no_palm_oil', 'no_beef', 'no_shellfish'];
+const MEALS = [
+  ['party-jollof', 'Smoky party jollof', 'rice', 'jollof', 'Long-grain rice slow-cooked in a rich tomato and tatashe base, finished over firewood heat for that bottom-pot smokiness.', STD, true, null, true,
+    [['Plate', 'Serves 1', 3500, 1], ['Family tray', 'Serves 4–5', 15000, 5], ['Party cooler', 'Serves 20–25', 65000, 22, true]]],
+  ['fried-rice', 'Nigerian fried rice', 'rice', 'friedrice', 'Curried rice with carrots, green beans, sweetcorn and liver, tossed in rich stock.', [...STD, 'no_beef'], true, null, false,
+    [['Plate', 'Serves 1', 3500, 1], ['Family tray', 'Serves 4–5', 15000, 5], ['Party cooler', 'Serves 20–25', 65000, 22, true]]],
+  ['ofada-ayamase', 'Ofada rice & ayamase', 'rice', 'ofada', 'Local ofada rice with green-pepper "designer stew", assorted meat and boiled egg — wrapped in leaves the old way.', [...STD, 'no_beef', 'no_crayfish'], true, 'Contains locust beans (iru)', true,
+    [['Plate', 'Serves 1', 5000, 1.2], ['Family pack', 'Serves 4', 19000, 5]]],
+  ['egusi', 'Egusi soup', 'soups', 'egusi', 'Ground melon seed soup with ugu and bitter leaf, stockfish, ponmo and assorted meat.', SOUP, true, 'Contains melon seeds, fish', true,
+    [['1 litre', 'Serves 3–4', 12000, 3], ['2 litres', 'Serves 6–8', 22000, 6], ['5 litre bucket', 'Serves 18–20', 52000, 15, true]]],
+  ['efo-riro', 'Efo riro', 'soups', 'eforiro', 'Rich spinach stew in a pepper and palm-oil base with iru, smoked fish and assorted meat.', SOUP, true, 'Contains fish, locust beans', false,
+    [['1 litre', 'Serves 3–4', 11000, 3], ['2 litres', 'Serves 6–8', 20000, 6], ['5 litre bucket', 'Serves 18–20', 48000, 15, true]]],
+  ['ogbono', 'Ogbono soup', 'soups', 'ogbono', 'Draw soup with ground ogbono, okra and leafy greens, loaded with beef and fish.', SOUP, true, 'Contains fish', false,
+    [['1 litre', 'Serves 3–4', 11000, 3], ['2 litres', 'Serves 6–8', 20000, 6]]],
+  ['banga', 'Banga soup', 'soups', 'banga', 'Palm-nut soup the Delta way, with fresh catfish and beletete spice.', SOUP.filter((x) => x !== 'no_palm_oil'), true, 'Contains fish', false,
+    [['1 litre', 'Serves 3–4', 13000, 3], ['2 litres', 'Serves 6–8', 24000, 6]]],
+  ['pepper-soup', 'Goat meat pepper soup', 'soups', 'peppersoup', 'Light, aromatic broth with uziza, scent leaf and tender goat meat. Catfish on request.', [...STD, 'no_beef'], true, null, false,
+    [['Bowl', 'Serves 1', 4500, 1], ['2 litres', 'Serves 6', 22000, 6]]],
+  ['pounded-yam', 'Pounded yam', 'swallow', 'poundo', 'Smooth, stretchy pounded yam made from fresh tubers — not flour.', [], false, null, false,
+    [['Wrap', '1 wrap', 1200, 0.3], ['Pack of 6 wraps', '6 wraps', 6500, 1.5]]],
+  ['amala', 'Amala', 'swallow', 'amala', 'Soft yam-flour amala, light and fluffy. Perfect with ewedu and gbegiri.', [], false, null, false,
+    [['Wrap', '1 wrap', 800, 0.3], ['Pack of 6 wraps', '6 wraps', 4500, 1.5]]],
+  ['eba', 'Eba', 'swallow', 'eba', 'Yellow garri eba, made just right — not too hard, not too soft.', [], false, null, false,
+    [['Wrap', '1 wrap', 600, 0.2], ['Pack of 6 wraps', '6 wraps', 3300, 1]]],
+  ['moi-moi', 'Moi moi', 'sides', 'moimoi', 'Steamed bean pudding with tatashe, egg and fish — soft, rich and peppery.', [...STD, 'no_crayfish'], true, 'Contains egg, fish', false,
+    [['Piece', '1 wrap', 1200, 0.3], ['Dozen', '12 wraps', 13000, 3]]],
+  ['dodo', 'Fried plantain (dodo)', 'sides', 'dodo', 'Sweet ripe plantain, sliced and fried golden.', ['low_oil'], false, null, false,
+    [['Portion', 'Serves 1', 1500, 0.3], ['Party tray', 'Serves 15–20', 18000, 5, true]]],
+  ['peppered-chicken', 'Peppered chicken', 'proteins', 'chicken', 'Seasoned, fried and tossed in a glossy pepper-onion sauce.', [...STD], true, null, true,
+    [['2 pieces', 'Serves 1', 3500, 0.5], ['10 pieces', 'Serves 5', 16000, 2.5], ['Party tray (30 pcs)', 'Serves 15', 45000, 7, true]]],
+  ['asun', 'Asun (spicy goat)', 'proteins', 'asun', 'Smoky grilled goat meat chopped and tossed with scotch bonnet and onions.', STD, true, null, false,
+    [['Portion', 'Serves 1–2', 6000, 1], ['Party tray', 'Serves 15', 55000, 8, true]]],
+  ['fish-stew', 'Fried fish & tomato stew', 'proteins', 'fishstew', 'Ayamase-style red stew with fried croaker or titus.', [...STD, 'no_palm_oil'], true, 'Contains fish', false,
+    [['1 litre', 'Serves 3–4', 14000, 3], ['2 litres', 'Serves 6–8', 26000, 6]]],
+  ['small-chops', 'Small chops box', 'small_chops', 'smallchops', 'Puff-puff, spring rolls, samosa, mosa and peppered gizzard — the party starter.', ['no_beef', 'low_oil'], true, 'Contains wheat, egg', true,
+    [['Box', 'Serves 1', 3500, 0.6], ['Box of 20', '20 guests', 65000, 12, true], ['Box of 50', '50 guests', 155000, 28, true]]],
+  ['akara', 'Akara', 'small_chops', 'akara', 'Crispy bean fritters with pepper and onion, fried to order.', ['no_onions', 'low_oil'], true, null, false,
+    [['10 balls', 'Serves 2', 2000, 0.4], ['50 balls', 'Serves 10', 9000, 2]]],
+  ['chin-chin', 'Chin chin', 'small_chops', 'chinchin', 'Crunchy, lightly sweet fried dough bites. Lasts for days.', [], false, 'Contains wheat, milk, egg', false,
+    [['500g jar', '500g', 3500, 0.4], ['2kg bucket', '2kg', 12000, 1.5]]],
+  ['party-pack', 'Party pack', 'party', 'partypack', 'Jollof or fried rice, chicken, moi moi, dodo and coleslaw in one sealed pack per guest.', STD, true, null, true,
+    [['Pack of 25', '25 guests', 95000, 25, true], ['Pack of 50', '50 guests', 185000, 48, true], ['Pack of 100', '100 guests', 360000, 90, true]]],
+];
+
+let mealCount = 0;
+for (const [i, [slug, name, category, illustration, description, excl, spice, contains, featured, options]] of MEALS.entries()) {
+  const [found] = await pool.query('SELECT id FROM meals WHERE slug = ?', [slug]);
+  if (found[0]) continue; // keep Jojo's edits
+  const [res] = await pool.query(
+    `INSERT INTO meals (slug, name, category, description, illustration, allowed_exclusions, spice_levels, contains, featured, active, sort)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`, [slug, name, category, description, illustration, JSON.stringify(excl), spice ? 1 : 0, contains, featured ? 1 : 0, i]);
+  for (const [j, [label, serves, price, portions, bulk]] of options.entries()) {
+    await pool.query('INSERT INTO meal_options (meal_id, label, serves, price, portions, is_bulk, active, sort) VALUES (?, ?, ?, ?, ?, ?, 1, ?)',
+      [res.insertId, label, serves, price, portions, bulk ? 1 : 0, j]);
+  }
+  mealCount++;
+}
+
+console.log(`Seeded ${AREAS.length} areas, ${CATEGORIES.length} categories, ${MARKETS.length} markets, ${itemCount} new items, ${mealCount} new dishes.`);
 await pool.end();

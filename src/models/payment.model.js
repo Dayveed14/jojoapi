@@ -3,10 +3,10 @@ import { pool } from '../db/pool.js';
 
 export async function create(t, conn = pool) {
   const [res] = await conn.query(
-    `INSERT INTO payment_transactions (booking_id, customer_id, provider, provider_reference, transaction_type, amount, status,
+    `INSERT INTO payment_transactions (booking_id, kitchen_order_id, customer_id, provider, provider_reference, transaction_type, amount, status,
         idempotency_key, payer_note, verified_at, verified_by, metadata_json)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [t.bookingId ?? null, t.customerId, t.provider, t.providerReference ?? null, t.type, t.amount, t.status,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [t.bookingId ?? null, t.kitchenOrderId ?? null, t.customerId, t.provider, t.providerReference ?? null, t.type, t.amount, t.status,
       t.idempotencyKey ?? null, t.payerNote ?? null, t.verifiedAt ?? null, t.verifiedBy ?? null,
       t.metadata ? JSON.stringify(t.metadata) : null]);
   return res.insertId;
@@ -42,7 +42,8 @@ export async function listForBooking(bookingId, conn = pool) {
 
 export async function listForCustomer(customerId, conn = pool) {
   const [rows] = await conn.query(
-    `SELECT t.*, b.reference AS booking_reference FROM payment_transactions t LEFT JOIN bookings b ON b.id = t.booking_id
+    `SELECT t.*, b.reference AS booking_reference, k.reference AS kitchen_reference FROM payment_transactions t
+       LEFT JOIN bookings b ON b.id = t.booking_id LEFT JOIN kitchen_orders k ON k.id = t.kitchen_order_id
       WHERE t.customer_id = ? AND t.status IN ('pending','successful') ORDER BY t.id DESC LIMIT 200`, [customerId]);
   return rows;
 }
@@ -56,9 +57,10 @@ export async function listForAdmin({ status, provider, type, limit, offset }, co
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const [[{ total }]] = await conn.query(`SELECT COUNT(*) AS total FROM payment_transactions t ${whereSql}`, params);
   const [rows] = await conn.query(
-    `SELECT t.*, b.reference AS booking_reference, p.display_name AS customer_name, u.email AS customer_email
+    `SELECT t.*, b.reference AS booking_reference, k.reference AS kitchen_reference, p.display_name AS customer_name, u.email AS customer_email
        FROM payment_transactions t
        LEFT JOIN bookings b ON b.id = t.booking_id
+       LEFT JOIN kitchen_orders k ON k.id = t.kitchen_order_id
        JOIN users u ON u.id = t.customer_id
        LEFT JOIN customer_profiles p ON p.user_id = t.customer_id
       ${whereSql} ORDER BY t.id DESC LIMIT ? OFFSET ?`, [...params, limit, offset]);
@@ -97,5 +99,27 @@ export async function hasPending(bookingId, type, conn = pool) {
   const [[row]] = await conn.query(
     "SELECT COUNT(*) AS n FROM payment_transactions WHERE booking_id = ? AND transaction_type = ? AND status IN ('pending','initiated') AND provider = 'manual'",
     [bookingId, type]);
+  return Number(row.n) > 0;
+}
+
+// ---------- Kitchen orders ----------
+
+export async function listForKitchenOrder(orderId, conn = pool) {
+  const [rows] = await conn.query('SELECT * FROM payment_transactions WHERE kitchen_order_id = ? ORDER BY id', [orderId]);
+  return rows;
+}
+
+export async function paidTotalKoboForKitchenOrder(orderId, conn = pool) {
+  const [[row]] = await conn.query(
+    `SELECT COALESCE(SUM(CASE
+        WHEN transaction_type IN ('charge','additional_charge','credit_applied') THEN amount
+        WHEN transaction_type IN ('refund','credit_issued') THEN -amount ELSE 0 END), 0) AS net
+       FROM payment_transactions WHERE kitchen_order_id = ? AND status = 'successful'`, [orderId]);
+  return Math.round(Number(row.net) * 100);
+}
+
+export async function hasPendingKitchen(orderId, conn = pool) {
+  const [[row]] = await conn.query(
+    "SELECT COUNT(*) AS n FROM payment_transactions WHERE kitchen_order_id = ? AND status = 'pending' AND provider = 'manual'", [orderId]);
   return Number(row.n) > 0;
 }

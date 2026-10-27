@@ -84,6 +84,12 @@ function compose({ templateKey, subject, preheader, heading, lines = [], button,
 }
 
 const bookingButton = (b, label = 'View your booking') => ({ label, url: link(`/app/bookings/${b.reference}`) });
+const kitchenButton = (o, label = 'Track your order') => ({ label, url: link(`/app/kitchen/orders/${o.reference}`) });
+const adminKitchen = (o) => ({ label: 'Open in the operator console', url: link(`/admin/kitchen/orders/${o.reference}`) });
+const itemLines = (items) => items.map((i) => {
+  const extras = [...(i.exclusionLabels || []), i.spice_level ? `${i.spice_level} pepper` : null, i.instructions ? `“${i.instructions}”` : null].filter(Boolean);
+  return `${i.quantity} × ${i.meal_name} (${i.option_label})${extras.length ? ` — ${extras.join(', ')}` : ''}`;
+});
 
 // ---------- Templates ----------
 
@@ -167,6 +173,101 @@ export const templates = {
     lines: [`We’ve sent ${formatNaira(amount)} for ${b.reference}. Depending on your bank it may take a little while to show.`],
     button: bookingButton(b),
   }),
+  // ---------- Jojo's Kitchen (customer) ----------
+  kitchenAwaitingPayment: (o) => compose({
+    templateKey: 'kitchen.awaiting_payment',
+    subject: `Your food order ${o.reference} — complete payment`,
+    heading: 'Almost there — complete your payment',
+    lines: [`Your order ${o.reference} is held for ${o.deliveryText}.`, { rows: [['Food', formatNaira(o.subtotal)], ['Delivery', formatNaira(o.delivery_fee)], ['Total', formatNaira(o.total)]] },
+      'Pay soon to keep your delivery slot — unpaid orders release the slot after a few hours.'],
+    button: kitchenButton(o, 'Pay now'),
+  }),
+  kitchenExpressReceived: (o) => compose({
+    templateKey: 'kitchen.express_received',
+    subject: `Express request ${o.reference} received`,
+    heading: 'We’re checking with Jojo',
+    lines: [`Your express request for ${o.deliveryText} is with Jojo. She’ll confirm if she can cook it in time.`, 'You’ll get an email as soon as she replies. Nothing is charged until then.'],
+    button: kitchenButton(o, 'See your request'),
+  }),
+  kitchenExpressApproved: (o) => compose({
+    templateKey: 'kitchen.express_approved',
+    subject: `Express request ${o.reference} approved`,
+    heading: 'Express request approved!',
+    lines: [`Jojo can deliver ${o.reference} ${o.deliveryText}. Kindly proceed to payment to confirm.`,
+      { rows: [['Food', formatNaira(o.subtotal)], ['Express fee', formatNaira(o.express_fee)], ['Delivery', formatNaira(o.delivery_fee)], ['Total', formatNaira(o.total)]] },
+      ...(o.operator_note ? [`Note from Jojo: ${o.operator_note}`] : [])],
+    button: kitchenButton(o, 'Pay & confirm'),
+  }),
+  kitchenExpressDeclined: (o) => compose({
+    templateKey: 'kitchen.express_declined',
+    subject: `Update on express request ${o.reference}`,
+    heading: 'Jojo can’t do this express order',
+    lines: [`Sorry — Jojo can’t cook ${o.reference} in time for ${o.deliveryText}.`, ...(o.status_reason ? [`Reason: ${o.status_reason}`] : []), 'You haven’t been charged. You can place a regular order instead.'],
+    button: { label: 'Order again', url: link('/app/kitchen/order') },
+  }),
+  kitchenConfirmed: (o, items) => compose({
+    templateKey: 'kitchen.confirmed',
+    subject: `Order ${o.reference} confirmed`,
+    heading: 'Your order is confirmed',
+    lines: [`Payment received. Jojo will cook and deliver ${o.deliveryText}.`, { list: itemLines(items) }],
+    button: kitchenButton(o),
+  }),
+  kitchenOutForDelivery: (o) => compose({
+    templateKey: 'kitchen.out_for_delivery',
+    subject: `Order ${o.reference} is on its way`,
+    heading: 'Your food is on its way!',
+    lines: ['Freshly cooked and packed — it’s out for delivery now.'],
+    button: kitchenButton(o),
+  }),
+  kitchenDelivered: (o) => compose({
+    templateKey: 'kitchen.delivered',
+    subject: `Order ${o.reference} delivered`,
+    heading: 'Enjoy your meal!',
+    lines: [`Order ${o.reference} has been delivered. Thank you for ordering from Jojo’s Kitchen.`],
+    button: { label: 'Order again', url: link('/app/kitchen/order') },
+  }),
+  kitchenCancelled: (o) => compose({
+    templateKey: 'kitchen.cancelled',
+    subject: `Order ${o.reference} cancelled`,
+    heading: 'Your order was cancelled',
+    lines: [...(o.status_reason ? [`Reason: ${o.status_reason}`] : []),
+      ...(o.refund_status === 'credited' ? [`${formatNaira(o.refund_due)} has been added to your Jojo Market credit.`] : o.refund_status === 'refund_pending' ? [`Jojo will refund ${formatNaira(o.refund_due)} to you.`] : [])],
+    button: kitchenButton(o, 'View order'),
+  }),
+
+  // ---------- To Jojo (operator) ----------
+  opExpressRequest: (o, items) => compose({
+    templateKey: 'op.kitchen_express',
+    subject: `⚡ Express food request ${o.reference}`,
+    heading: 'New express request — can you make it?',
+    lines: [`${o.customer_name || 'A customer'} wants this ${o.deliveryText}:`, { list: itemLines(items) },
+      ...(o.allergy_notes ? [`Allergies: ${o.allergy_notes}`] : []), ...(o.customer_notes ? [`Note: ${o.customer_notes}`] : []),
+      `Deliver to: ${o.addr_area}`, 'Approve with the express fee, or decline. The request expires if not answered.'],
+    button: adminKitchen(o),
+  }),
+  opKitchenPaid: (o, items) => compose({
+    templateKey: 'op.kitchen_paid',
+    subject: `New food order ${o.reference} — ${o.deliveryText}`,
+    heading: 'New paid food order',
+    lines: [`${o.customer_name || 'A customer'} · ${o.order_type === 'express' ? 'EXPRESS' : 'Regular'} · ${o.deliveryText}`, { list: itemLines(items) },
+      ...(o.allergy_notes ? [`Allergies: ${o.allergy_notes}`] : []), `Deliver to: ${o.addr_area}`],
+    button: adminKitchen(o),
+  }),
+  opNewBooking: (b) => compose({
+    templateKey: 'op.booking_submitted',
+    subject: `New market run request ${b.reference}`,
+    heading: 'New market run request',
+    lines: [`${b.customer_name || 'A customer'} · ${b.booking_type === 'sample_run' ? 'Sample run' : 'Full shopping'} at ${b.market_name}.`, 'Review the list and send a quote.'],
+    button: { label: 'Review request', url: link(`/admin/bookings/${b.reference}`) },
+  }),
+  opTransferNotice: (ref, amount, note, path) => compose({
+    templateKey: 'op.transfer_notice',
+    subject: `Transfer notice for ${ref}`,
+    heading: 'A customer says they’ve paid',
+    lines: [`${formatNaira(amount)} for ${ref}.`, `Their note: “${note}”`, 'Confirm only after the money shows in your account.'],
+    button: { label: 'Confirm payment', url: link(path) },
+  }),
+
   restock: (name, items) => compose({
     templateKey: 'restock.reminder',
     subject: 'Time to plan your next market run?',

@@ -1,6 +1,7 @@
 // Operator API. Every route requires an operator session — checked on the server.
 import { Router } from 'express';
 import * as bookings from '../controllers/admin/booking.controller.js';
+import * as kitchen from '../controllers/admin/kitchen.controller.js';
 import * as ops from '../controllers/admin/operations.controller.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { uploadLimiter } from '../middleware/rateLimits.js';
@@ -8,6 +9,9 @@ import { imageUpload } from '../middleware/upload.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler as h } from '../utils/errors.js';
 import { pagination } from '../validators/common.validators.js';
+import {
+  advanceSchema, approveExpressSchema, kitchenListQuery, kitchenRefundSchema, mealSchema, operatorCancelSchema, overrideSchema, sheetQuery,
+} from '../validators/kitchen.validators.js';
 import {
   attachmentSchema, auditQuery, bookingListQuery, calendarQuery, categorySchema, changeRequestSchema, customerListQuery,
   customerStatusSchema, exceptionSchema, itemSchema, marketSchema, optionalReasonSchema, paymentListQuery, quoteSchema,
@@ -39,6 +43,25 @@ router.get('/bookings/:reference/attachments/:attachmentId', h(bookings.attachme
 router.delete('/bookings/:reference/attachments/:attachmentId', h(bookings.deleteAttachment));
 router.post('/bookings/:reference/refund', validate(refundSchema), h(bookings.recordRefund));
 router.post('/bookings/:reference/reconciliation-status', validate(reconciliationStatusSchema), h(bookings.setReconciliationStatus));
+
+// Jojo's Kitchen
+router.get('/kitchen/orders', validate(kitchenListQuery, 'query'), h(kitchen.list));
+router.get('/kitchen/orders/:reference', h(kitchen.get));
+router.post('/kitchen/orders/:reference/approve', validate(approveExpressSchema), h(kitchen.approve));
+router.post('/kitchen/orders/:reference/decline', validate(reasonSchema), h(kitchen.decline));
+router.post('/kitchen/orders/:reference/advance', validate(advanceSchema), h(kitchen.advance));
+router.post('/kitchen/orders/:reference/cancel', validate(operatorCancelSchema), h(kitchen.cancel));
+router.post('/kitchen/orders/:reference/refund', validate(kitchenRefundSchema), h(kitchen.refund));
+router.post('/kitchen/orders/:reference/payments/:paymentId/confirm', h(kitchen.confirmPayment));
+router.post('/kitchen/orders/:reference/payments/:paymentId/reject', validate(reasonSchema), h(kitchen.rejectPayment));
+router.get('/kitchen/sheet', validate(sheetQuery, 'query'), h(kitchen.sheet));
+router.get('/kitchen/calendar', h(kitchen.calendar));
+router.post('/kitchen/calendar', validate(overrideSchema), h(kitchen.setOverride));
+router.get('/kitchen/menu', h(kitchen.menu));
+router.post('/kitchen/menu', validate(mealSchema), h(kitchen.saveMeal));
+router.put('/kitchen/menu/:id', validate(mealSchema), h(kitchen.saveMeal));
+router.post('/kitchen/menu/:id/photo', uploadLimiter, imageUpload(6).single('photo'), h(kitchen.uploadPhoto));
+router.delete('/kitchen/menu/:id/photo', h(kitchen.removePhoto));
 
 // Calendar
 router.get('/calendar', validate(calendarQuery, 'query'), h(ops.calendar));
