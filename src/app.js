@@ -22,7 +22,7 @@ export function createApp() {
   app.use('/api/payments', webhookRouter);
 
   app.use(cors({
-    origin: env.CLIENT_ORIGIN,
+    origin: env.CLIENT_ORIGINS,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],

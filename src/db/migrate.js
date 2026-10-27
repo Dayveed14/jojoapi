@@ -6,7 +6,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import mysql from 'mysql2/promise';
-import { env } from '../config/env.js';
+import { dbSsl, env } from '../config/env.js';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'migrations');
 
@@ -22,6 +22,7 @@ const conn = await mysql.createConnection({
   user: env.DB_USER,
   password: env.DB_PASSWORD,
   database: env.DB_NAME,
+  ssl: dbSsl,
   multipleStatements: true, // migrations only; the app pool never enables this
 });
 

@@ -9,6 +9,6 @@ import { forbidden } from '../utils/errors.js';
 export function requireCsrfHeader(req, _res, next) {
   if (req.get('x-requested-with') !== 'jojo-web') return next(forbidden('Invalid request origin'));
   const origin = req.get('origin');
-  if (origin && origin !== env.CLIENT_ORIGIN) return next(forbidden('Invalid request origin'));
+  if (origin && !env.CLIENT_ORIGINS.includes(origin)) return next(forbidden('Invalid request origin'));
   next();
 }

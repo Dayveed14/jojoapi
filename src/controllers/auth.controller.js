@@ -18,6 +18,8 @@ export async function login(req, res) {
 }
 
 export async function refresh(req, res) {
+  // No cookie = simply not signed in. Answer quietly instead of a 401 on every page load.
+  if (!req.cookies?.[sessionService.REFRESH_COOKIE]) return res.status(204).end();
   const { accessToken, userId } = await sessionService.rotateSession(req, res);
   res.json({ user: userService.toPublicUser(await User.findById(userId)), accessToken });
 }
